@@ -227,9 +227,7 @@ function md(t){
   return h+(list?'</ul>':'');
 }
 
-$('copyTpl').onclick=e=>copy($('tpl').textContent,e.target);
-$('copyP').onclick=e=>copy($('p').value,e.target);
-$('copyCv').onclick=e=>copy(cvMd.replace(/[#*]/g,'').trim(),e.target);
+$('copyTpl').onclick=e=>copy($('tpl').textContent,e.target);$('copyP').onclick=e=>copy($('p').value,e.target);$('copyCv').onclick=e=>copy(cvMd.replace(/[#*]/g,'').trim(),e.target);
 
 const SK=[
 ["Ajudo em casa (cuidar de irmãos, cozinhar, organizar)",["Responsabilidade","Organização"]],
@@ -257,8 +255,7 @@ $('addSk').onclick=()=>{
   f.value=cur.join(', ');$('skSt').textContent='Adicionadas! Veja no campo Habilidades abaixo.';
   $('dados').scrollIntoView({behavior:'smooth'});
 };
-const V=id=>$('f_'+id).value.trim();
-$('mkPrompt').onclick=()=>{
+const V=id=>$('f_'+id).value.trim();$('mkPrompt').onclick=()=>{
   const L=[];
   L.push(`Crie um currículo profissional para uma pessoa que está buscando ${V('obj')||'a primeira oportunidade profissional'}.`);
   if(V('nome'))L.push(`Meu nome é ${V('nome')}.`);
@@ -309,19 +306,21 @@ $('dl').onclick=async()=>{
 };
 
 $('gen').onclick=async()=>{
-  const prompt=$('p').value.trim();
-  $('err').classList.add('hidden');
-  if(prompt.length<20){showErr('Escreva ou cole seu prompt completo antes de gerar. Use o modelo da seção anterior.');$('copyP').classList.add('hidden');return}
-  $('copyP').classList.remove('hidden');
+  const prompt=$('p').value.trim();$('err').classList.add('hidden');
+  if(prompt.length<20){showErr('Escreva ou cole seu prompt completo antes de gerar. Use o modelo da seção anterior.');$('copyP').classList.add('hidden');return}$('copyP').classList.remove('hidden');
   if(usos()>=LIMIT){showErr(LIMIT_MSG);return}
   const b=$('gen');b.disabled=true;b.textContent='Gerando seu currículo...';
   try{
-    const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+    const r=await fetch('/api/generate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prompt})
+    });
     if(r.status===429){showErr(LIMIT_MSG);return}
-     if(!r.ok){
-  const erro = await r.json().catch(()=>({}));
-  throw new Error(erro.error || `Erro HTTP ${r.status}`);
-}
+    if(!r.ok){
+      const erro = await r.json().catch(()=>({}));
+      throw new Error(erro.error || `Erro HTTP ${r.status}`);
+    }
     const {text}=await r.json();
     try{localStorage.setItem(KEY,usos()+1)}catch{}
     const [cv,notes]=text.split(/\n\s*---+\s*\n/);
@@ -329,10 +328,9 @@ $('gen').onclick=async()=>{
     $('cv').innerHTML=md(cvMd);
     const n=$('review');
     if(notes&&notes.trim()){n.innerHTML='<strong>Revise antes de usar:</strong>'+md(notes.replace(/^\s*\**Para revisar:?\**/i,''));n.classList.remove('hidden')}else n.classList.add('hidden');
-    $('out').classList.remove('hidden');$
-    ('out').scrollIntoView({behavior:'smooth'});
-    }catch(e){
-  showErr('Erro: ' + e.message);
+    $('out').classList.remove('hidden');$('out').scrollIntoView({behavior:'smooth'});
+  }catch(e){
+    showErr('Erro: ' + e.message);
   }
   finally{b.disabled=false;b.textContent='✨ Gerar meu currículo';showLeft()}
 };
