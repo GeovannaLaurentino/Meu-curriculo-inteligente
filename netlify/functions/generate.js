@@ -52,7 +52,7 @@ async function gerarComGemini(prompt) {
   }
 
   // Corrigido para utilizar modelo válido (fallback para gemini-1.5-flash se não definido no ambiente)
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
