@@ -57,10 +57,12 @@ export default async (req) => {
   try {
     const text = await providers[process.env.AI_PROVIDER || 'gemini'](prompt);
     return json({ text });
-  } catch (e) {
-    console.error(e.message);
-    return json({ error: 'unavailable' }, 503);
-  }
+} catch (e) {
+  console.error(e);
+  return json({
+    error: e.message || 'Erro desconhecido'
+  }, 503);
+}
 };
 
 export const config = { path: '/api/generate' };
