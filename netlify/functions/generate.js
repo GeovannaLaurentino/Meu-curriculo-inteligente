@@ -36,10 +36,10 @@ export default async function handler(request) {
     return new Response(JSON.stringify({ error: "Método não permitido." }), { status: 405, headers });
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return new Response(
-      JSON.stringify({ error: "Variável GROQ_API_KEY não configurada no Netlify." }),
+      JSON.stringify({ error: "Variável GEMINI_API_KEY não configurada no Netlify." }),
       { status: 500, headers }
     );
   }
@@ -56,47 +56,49 @@ export default async function handler(request) {
     return new Response(JSON.stringify({ error: "Prompt muito curto." }), { status: 400, headers });
   }
 
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: SYSTEM_RULES },
-          { role: "user", content: `DADOS DO ESTUDANTE PARA O CURRÍCULO:\n${prompt}` }
-        ],
-        temperature: 0.3,
-        max_tokens: 1500
-      })
-    });
+  // Tenta primeiro o gemini-3.8-flash; se falhar/demorar, usa o gemini-1.5-flash-8b
+  const modelos = ["gemini-3.8-flash", "gemini-1.5-flash-8b"];
 
-    const data = await response.json();
+  for (const model of modelos) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: `${SYSTEM_RULES}\n\nDADOS DO ESTUDANTE PARA O CURRÍCULO:\n${prompt}` }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 1500
+          }
+        })
+      });
 
-    if (!response.ok) {
-      console.error("Erro na Groq API:", data);
-      return new Response(
-        JSON.stringify({ error: data?.error?.message || "Erro na geração do currículo." }),
-        { status: response.status, headers }
-      );
+      const data = await response.json();
+
+      if (response.ok) {
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          return new Response(JSON.stringify({ text }), { status: 200, headers });
+        }
+      } else {
+        console.warn(`Erro no modelo ${model}:`, data?.error?.message);
+      }
+    } catch (err) {
+      console.warn(`Falha na requisição para ${model}:`, err.message);
     }
-
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) {
-      return new Response(JSON.stringify({ error: "A IA não retornou conteúdo." }), { status: 500, headers });
-    }
-
-    return new Response(JSON.stringify({ text }), { status: 200, headers });
-
-  } catch (err) {
-    console.error("Erro interno:", err);
-    return new Response(
-      JSON.stringify({ error: "Erro de conexão com o servidor de IA." }),
-      { status: 500, headers }
-    );
   }
+
+  return new Response(
+    JSON.stringify({ error: "Serviço temporariamente indisponível na Google API. Tente novamente em alguns instantes." }),
+    { status: 503, headers }
+  );
 }
-  
