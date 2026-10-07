@@ -51,18 +51,17 @@ async function gerarComGemini(prompt) {
     throw new Error("GEMINI_API_KEY não configurada no Netlify.");
   }
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  // Corrigido para utilizar modelo válido (fallback para gemini-1.5-flash se não definido no ambiente)
+  const model = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
-
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey
       },
-
       body: JSON.stringify({
         systemInstruction: {
           parts: [
@@ -71,7 +70,6 @@ async function gerarComGemini(prompt) {
             }
           ]
         },
-
         contents: [
           {
             role: "user",
@@ -82,7 +80,6 @@ async function gerarComGemini(prompt) {
             ]
           }
         ],
-
         generationConfig: {
           temperature: 0.4
         }
@@ -94,7 +91,6 @@ async function gerarComGemini(prompt) {
 
   if (!response.ok) {
     console.error("Erro Gemini:", data);
-
     throw new Error(
       data?.error?.message ||
       `Erro da API Gemini: ${response.status}`
@@ -112,8 +108,18 @@ async function gerarComGemini(prompt) {
   return text;
 }
 
-
 export default async function handler(request) {
+  const headers = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+
+  // Trata requisições Preflight (OPTIONS)
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers });
+  }
 
   if (request.method !== "POST") {
     return new Response(
@@ -122,13 +128,10 @@ export default async function handler(request) {
       }),
       {
         status: 405,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       }
     );
   }
-
 
   let body;
 
@@ -141,16 +144,12 @@ export default async function handler(request) {
       }),
       {
         status: 400,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       }
     );
   }
 
-
   const prompt = String(body?.prompt || "").trim();
-
 
   if (prompt.length < 20) {
     return new Response(
@@ -159,13 +158,10 @@ export default async function handler(request) {
       }),
       {
         status: 400,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       }
     );
   }
-
 
   if (prompt.length > 4000) {
     return new Response(
@@ -174,16 +170,12 @@ export default async function handler(request) {
       }),
       {
         status: 400,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       }
     );
   }
 
-
   try {
-
     const text = await gerarComGemini(prompt);
 
     return new Response(
@@ -192,14 +184,10 @@ export default async function handler(request) {
       }),
       {
         status: 200,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       }
     );
-
   } catch (error) {
-
     console.error("Erro ao gerar currículo:", error);
 
     return new Response(
@@ -208,9 +196,7 @@ export default async function handler(request) {
       }),
       {
         status: 503,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       }
     );
   }
