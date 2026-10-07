@@ -1,68 +1,217 @@
-// Função serverless do Netlify: guarda a chave da API (variável de ambiente) e chama o provedor de IA.
-// Para trocar de provedor, adicione uma função em `providers` e mude AI_PROVIDER.
-const SYSTEM_RULES = `Você ajuda estudantes do ensino médio a montar o primeiro currículo.
+const SYSTEM_RULES = `
+Você ajuda estudantes a montar currículos profissionais.
+
 REGRAS OBRIGATÓRIAS:
 - Use SOMENTE as informações fornecidas pelo participante.
-- Não invente experiências, empresas, cursos, habilidades, idiomas ou dados pessoais.
-- Melhore a organização e a redação sem alterar os fatos. Evite exageros.
-- Linguagem profissional, clara e objetiva, adaptada ao objetivo profissional informado.
-- Mostre apenas seções que tenham informações. Nunca crie seções vazias.
-FORMATO (Markdown, em português):
+- Nunca invente experiências, empresas, cursos, habilidades, idiomas ou dados pessoais.
+- Melhore apenas a organização e a redação das informações.
+- Não altere os fatos fornecidos.
+- Use linguagem profissional, clara e objetiva.
+- Adapte o currículo ao objetivo profissional informado.
+- Mostre somente as seções que possuem informações.
+- Nunca crie seções vazias.
+
+FORMATO DA RESPOSTA:
+
 # NOME
-Linha de contato (somente se informada)
+
+Linha de contato, somente se tiver sido informada.
+
 ## OBJETIVO PROFISSIONAL
+
 ## FORMAÇÃO
+
 ## EXPERIÊNCIAS
+
 ## CURSOS E CERTIFICAÇÕES
+
 ## HABILIDADES
+
 ## IDIOMAS
+
 ## PROJETOS OU ATIVIDADES
-Ao final do currículo, escreva uma linha com apenas --- e depois "Para revisar:" com uma lista curta das informações importantes que faltaram (ex.: contato, formação). Se nada faltar, omita essa parte.
-Se o pedido não for sobre criar um currículo, explique gentilmente que você só ajuda com isso.`;
 
-const providers = {
-  async gemini(prompt) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error('GEMINI_API_KEY não configurada');
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    const generationConfig = { temperature: 0.4 };
-    if (model.includes('2.5-flash')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_RULES }] },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig
-      })
-    });
-    if (!r.ok) throw new Error('Provedor respondeu ' + r.status);
-    const d = await r.json();
-    const text = d.candidates?.[0]?.content?.parts?.map(p => p.text).join('');
-    if (!text) throw new Error('Resposta vazia');
-    return text;
+Ao final do currículo, escreva:
+
+---
+
+Para revisar:
+
+E coloque uma lista curta das informações importantes que estiverem faltando.
+
+Se nenhuma informação importante estiver faltando, não coloque a seção "Para revisar".
+
+Se o pedido não for sobre criação ou organização de currículo, explique gentilmente que você foi desenvolvido para auxiliar nessa atividade.
+`;
+
+async function gerarComGemini(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY não configurada no Netlify.");
   }
-};
 
-const json = (obj, status = 200) =>
-  new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-export default async (req) => {
-  if (req.method !== 'POST') return json({ error: 'method' }, 405);
-  let body;
-  try { body = await req.json(); } catch { return json({ error: 'bad' }, 400); }
-  const prompt = String(body?.prompt || '').trim();
-  if (prompt.length < 20) return json({ error: 'short' }, 400);
-  if (prompt.length > 4000) return json({ error: 'long' }, 400);
-  try {
-    const text = await providers[process.env.AI_PROVIDER || 'gemini'](prompt);
-    return json({ text });
-} catch (e) {
-  console.error(e);
-  return json({
-    error: e.message || 'Erro desconhecido'
-  }, 503);
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: SYSTEM_RULES
+            }
+          ]
+        },
+
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+
+        generationConfig: {
+          temperature: 0.4
+        }
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("Erro Gemini:", data);
+
+    throw new Error(
+      data?.error?.message ||
+      `Erro da API Gemini: ${response.status}`
+    );
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map(part => part.text || "")
+    .join("");
+
+  if (!text) {
+    throw new Error("A IA não retornou nenhum conteúdo.");
+  }
+
+  return text;
 }
-};
 
-export const config = { path: '/api/generate' };
+
+export default async function handler(request) {
+
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({
+        error: "Método não permitido."
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+
+  let body;
+
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      JSON.stringify({
+        error: "Requisição inválida."
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+
+  const prompt = String(body?.prompt || "").trim();
+
+
+  if (prompt.length < 20) {
+    return new Response(
+      JSON.stringify({
+        error: "O prompt é muito curto."
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+
+  if (prompt.length > 4000) {
+    return new Response(
+      JSON.stringify({
+        error: "O prompt ultrapassa o limite de 4000 caracteres."
+      }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+
+  try {
+
+    const text = await gerarComGemini(prompt);
+
+    return new Response(
+      JSON.stringify({
+        text
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+  } catch (error) {
+
+    console.error("Erro ao gerar currículo:", error);
+
+    return new Response(
+      JSON.stringify({
+        error: error.message || "Não foi possível gerar o currículo."
+      }),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+}
