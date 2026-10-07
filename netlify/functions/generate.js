@@ -64,7 +64,7 @@ export default async function handler(request) {
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-8b-instant",
         messages: [
           { role: "system", content: SYSTEM_RULES },
           { role: "user", content: `DADOS DO ESTUDANTE PARA O CURRÍCULO:\n${prompt}` }
